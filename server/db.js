@@ -5,6 +5,7 @@ import { openStore } from './store.js';
 import { DEMO_ACCOUNTS, STAFF_ACCOUNTS, SPACES, MIN, targetShare } from './config.js';
 
 const TABLES = ['reports', 'bookings', 'sessions', 'seats', 'spaces', 'settings', 'users']; // drop order
+const SCHEMA_VERSION = '3'; // bump when tables, columns or staff accounts change
 
 function schema(dialect) {
   const pg = dialect === 'pg';
@@ -68,6 +69,12 @@ function schema(dialect) {
 
 export async function openDb({ url, file, reset = false }) {
   const db = await openStore({ url, file });
+  // Already set up? Skip the setup steps below (they take a while over the network, e.g. on every Vercel cold start).
+  if (!reset) {
+    let current = null;
+    try { current = (await db.get("SELECT value FROM settings WHERE key = 'schema_version'"))?.value; } catch { /* no tables yet */ }
+    if (current === SCHEMA_VERSION) return db;
+  }
   if (reset) {
     for (const t of TABLES) await db.exec(`DROP TABLE IF EXISTS ${t}${db.dialect === 'pg' ? ' CASCADE' : ''}`);
   }
@@ -91,6 +98,7 @@ export async function openDb({ url, file, reset = false }) {
 
   if ((await db.get('SELECT COUNT(*) AS n FROM spaces')).n === 0) await seed(db);
   await ensureStaff(db);
+  await setSetting(db, 'schema_version', SCHEMA_VERSION);
   return db;
 }
 

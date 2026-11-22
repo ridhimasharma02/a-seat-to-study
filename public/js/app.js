@@ -1,6 +1,6 @@
 // App shell: login wall, header, routing between pages, live updates.
 import { api, post } from './api.js';
-import { html, raw, setServerTime, toast, dialog, busy, passwordField, bindPasswordFields } from './ui.js';
+import { html, raw, esc, setServerTime, toast, dialog, busy, passwordField, bindPasswordFields } from './ui.js';
 
 const PAGES = [
   [/^\/$/, 'home'],
@@ -22,7 +22,7 @@ const NAV = [['/', 'Home'], ['/spaces', 'Spaces'], ['/bookings', 'My Bookings'],
 const STAFF_NAV = [['/staff', 'Reports'], ['/staff/seats', 'Seats in use'], ['/staff/sockets', 'Sockets'], ['/staff/stickers', 'Desk stickers']];
 const homeOf = (u) => (u?.role === 'staff' ? '/staff' : '/');
 
-const state = { me: null, page: null, rules: null };
+const state = { me: null, page: null, rules: null, live: 'stream' };
 const main = document.getElementById('app');
 
 const brand = raw(`<a class="brand" href="/" data-link>
@@ -201,8 +201,14 @@ window.addEventListener('auth-lost', () => {
 });
 
 // Live updates: the server pushes which spaces changed, the open page refreshes itself.
-let es = null, pending = new Set(), timer = null;
+// On Vercel (no long-lived connections) the open page refreshes itself every 10 seconds instead.
+let es = null, poll = null, pending = new Set(), timer = null;
+const EVERYTHING = { has: () => true };
 function connect() {
+  if (state.live === 'poll') {
+    if (!poll) poll = setInterval(() => { if (!document.hidden) Promise.resolve(state.page?.update?.(EVERYTHING)).catch(() => {}); }, 10_000);
+    return;
+  }
   if (es) return;
   es = new EventSource('/api/stream');
   es.addEventListener('update', (ev) => {
@@ -218,13 +224,29 @@ function connect() {
 }
 function disconnect() {
   es?.close(); es = null;
+  clearInterval(poll); poll = null;
   document.body.classList.remove('offline');
 }
 
 (async function start() {
-  const [meta, me] = await Promise.all([api('/api/meta'), api('/api/me')]);
+  let meta, me;
+  try {
+    [meta, me] = await Promise.all([api('/api/meta'), api('/api/me')]);
+  } catch (e) {
+    // Never leave people staring at "Loading…": say what is wrong.
+    const noServer = e.status === 404;
+    main.innerHTML = `<section class="page narrow"><div class="card">
+      <h1 class="page-title">Can't reach the app's server</h1>
+      <p>${noServer ? "This address only has the website files: the app's server part isn't running here." : esc(e.message)}</p>
+      <p class="muted small">${noServer
+        ? 'On Vercel, check that the project was deployed from the repository root, with its <code>api/</code> folder and <code>vercel.json</code>.'
+        : 'If this is on Vercel, check Settings &gt; Environment Variables &gt; DATABASE_URL, then redeploy.'}</p>
+    </div></section>`;
+    return;
+  }
   setServerTime(meta.now);
   state.rules = meta.rules;
+  state.live = meta.live || 'stream';
   state.me = me.user;
   if (state.me) connect();
   await render();

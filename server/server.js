@@ -1,4 +1,5 @@
 // A Seat to Study: web server and JSON API. Needs Node 22.13 or newer.
+// Runs two ways: as a normal server (npm start), or on Vercel, where api/index.js calls handle() for each request.
 //   npm start                  start on http://localhost:3000
 //   npm run reset              wipe the database and start fresh
 //   npm run connect-supabase   store your Supabase connection in .env (then npm start uses Supabase)
@@ -22,20 +23,30 @@ const PUBLIC = join(ROOT, 'public');
 const PORT = Number(process.env.PORT) || 3000;
 const SESSION_DAYS = 7;
 
-let db;
-try {
+// On Vercel there is no always-on server: no background timer, no open live-update connections, no disk to write.
+const ON_VERCEL = !!process.env.VERCEL;
+
+let db, initError = null;
+async function init() {
+  if (ON_VERCEL && !process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is not set. In Vercel open your project > Settings > Environment Variables, add DATABASE_URL with your Supabase connection string, then redeploy.');
+  }
   db = await openDb({
     url: process.env.DATABASE_URL,
     file: process.env.DB_FILE || join(ROOT, 'data', 'seat-to-study.db'),
     reset: process.argv.includes('--reset'),
   });
-} catch (e) {
-  console.error(`\nCould not open the database: ${e.message}`);
-  if (process.env.DATABASE_URL) console.error('Check the Supabase connection string in .env (run `npm run connect-supabase` again), or delete .env to use the local database.\n');
-  process.exit(1);
+  await sweep(db, Date.now());
+  if ((await getSetting(db, 'demo_activity', '1')) === '1') await simulate(db, Date.now(), { initial: true });
 }
-await sweep(db, Date.now());
-if ((await getSetting(db, 'demo_activity', '1')) === '1') await simulate(db, Date.now(), { initial: true });
+const ready = init().catch((e) => {
+  initError = e;
+  console.error(`\nCould not open the database: ${e.message}`);
+  if (!ON_VERCEL) {
+    if (process.env.DATABASE_URL) console.error('Check the Supabase connection string in .env (run `npm run connect-supabase` again), or delete .env to use the local database.\n');
+    process.exit(1);
+  }
+});
 
 // ---------- live updates (Server-Sent Events) ----------
 const streams = new Set();
@@ -48,10 +59,11 @@ function broadcast(spaceIds) {
 setInterval(() => { for (const res of streams) res.write(': ping\n\n'); }, 25_000).unref();
 
 // Every 15 seconds: release no-shows and long breaks, end finished bookings, run the demo activity.
-let ticking = false;
-setInterval(async () => {
-  if (ticking) return;        // a slow network round never overlaps the next one
-  ticking = true;
+// A normal server does this on a timer; on Vercel it happens on the next request once 15 seconds have passed.
+let ticking = false, lastTick = Date.now();
+async function tick() {
+  if (ticking) return;        // a slow round never overlaps the next one
+  ticking = true; lastTick = Date.now();
   try {
     const now = Date.now();
     const changed = await sweep(db, now);
@@ -59,7 +71,12 @@ setInterval(async () => {
     broadcast(changed);
   } catch (e) { console.error('[tick]', e.message); }
   finally { ticking = false; }
-}, 15_000).unref();
+}
+if (!ON_VERCEL) setInterval(() => { if (!initError && db) tick(); }, 15_000).unref();
+
+// The visitor's address (behind Vercel it comes from a header) and whether the page was loaded over https.
+const clientIp = (req) => String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
+const isHttps = (req) => String(req.headers['x-forwarded-proto'] || '').includes('https');
 
 // ---------- tiny router ----------
 const routes = [];
@@ -110,21 +127,21 @@ function recordFailure(key) {
 function limitRegister(ip) { const key = `register:${ip}`; checkLockout(key); recordFailure(key); }
 // A password copied with a stray space before or after it still works.
 const passwordMatches = (pw, hash) => verifyPassword(pw, hash) || (pw.trim() !== pw && verifyPassword(pw.trim(), hash));
-async function startSession(userId) {
+async function startSession(userId, req) {
   const token = newToken();
   await db.run('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)', token, userId, Date.now() + SESSION_DAYS * 86_400_000);
-  return { 'Set-Cookie': `sts=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_DAYS * 86_400}` };
+  return { 'Set-Cookie': `sts=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_DAYS * 86_400}${isHttps(req) ? '; Secure' : ''}` };
 }
 const publicUser = (u) => u && (u.role === 'staff'
   ? { id: u.id, name: u.name, staff_id: u.reg_no, title: u.title, role: 'staff' }
   : { id: u.id, name: u.name, reg_no: u.reg_no, role: 'student' });
 
 // Only these API routes work without logging in; everything else needs an account.
-route('GET', '/api/meta', () => ({ now: Date.now(), rules: RULES }), { public: true });
+route('GET', '/api/meta', () => ({ now: Date.now(), rules: RULES, live: ON_VERCEL ? 'poll' : 'stream' }), { public: true });
 route('GET', '/api/me', ({ user }) => ({ user: publicUser(user) }), { public: true });
 
 route('POST', '/api/register', async ({ body, req }) => {
-  limitRegister(req.socket.remoteAddress);
+  limitRegister(clientIp(req));
   const name = String(body.name || '').trim();
   const reg = String(body.reg_no || '').trim();
   const pw = String(body.password || '');
@@ -136,12 +153,12 @@ route('POST', '/api/register', async ({ body, req }) => {
   const r = await db.run("INSERT INTO users (reg_no, name, pass_hash, role, created_at) VALUES (?, ?, ?, 'student', ?) RETURNING id, reg_no, name, role",
     reg, name, hashPassword(pw), Date.now());
   const row = r.rows[0];
-  return { status: 201, body: { user: publicUser(row) }, headers: await startSession(row.id) };
+  return { status: 201, body: { user: publicUser(row) }, headers: await startSession(row.id, req) };
 }, { public: true });
 
 route('POST', '/api/login', async ({ body, req }) => {
   const reg = String(body.reg_no || '').trim();
-  const key = `student:${req.socket.remoteAddress}:${reg}`;
+  const key = `student:${clientIp(req)}:${reg}`;
   checkLockout(key);
   const row = await db.get('SELECT * FROM users WHERE reg_no = ? AND is_demo = 0', reg);
   if (!row || !passwordMatches(String(body.password || ''), row.pass_hash)) {
@@ -150,13 +167,13 @@ route('POST', '/api/login', async ({ body, req }) => {
   }
   if (row.role !== 'student') throw new HttpError(403, 'This is the student login. Library staff, please use the staff login page.');
   failures.delete(key);
-  return { body: { user: publicUser(row) }, headers: await startSession(row.id) };
+  return { body: { user: publicUser(row) }, headers: await startSession(row.id, req) };
 }, { public: true });
 
 // Staff have their own login page and endpoint, which refuses student accounts.
 route('POST', '/api/staff/login', async ({ body, req }) => {
   const id = String(body.staff_id || '').trim();
-  const key = `staff:${req.socket.remoteAddress}:${id.toUpperCase()}`; // each Staff ID has its own lockout
+  const key = `staff:${clientIp(req)}:${id.toUpperCase()}`; // each Staff ID has its own lockout
   checkLockout(key);
   const row = (await db.get('SELECT * FROM users WHERE reg_no = ? AND is_demo = 0', id.toUpperCase()))
     || (await db.get('SELECT * FROM users WHERE reg_no = ? AND is_demo = 0', id));
@@ -171,7 +188,7 @@ route('POST', '/api/staff/login', async ({ body, req }) => {
   }
   if (row.role !== 'staff') throw new HttpError(403, 'This login is for library staff only. Students, please use the student login.');
   failures.delete(key);
-  return { body: { user: publicUser(row) }, headers: await startSession(row.id) };
+  return { body: { user: publicUser(row) }, headers: await startSession(row.id, req) };
 }, { public: true });
 
 // Change your own password (students and staff). Logs out your other devices.
@@ -399,12 +416,12 @@ function lanAddress() {
   return 'localhost';
 }
 
-route('GET', '/api/staff/desk-codes', async ({ query }) => {
+route('GET', '/api/staff/desk-codes', async ({ query, req }) => {
   const sp = await db.get('SELECT id, name, area FROM spaces WHERE id = ?', String(query.space || ''));
   if (!sp) throw new HttpError(404, 'Pick a study space.');
   return {
     space: sp,
-    base_url: process.env.PUBLIC_URL || `http://${lanAddress()}:${PORT}`,
+    base_url: process.env.PUBLIC_URL || (ON_VERCEL ? `https://${req.headers['x-forwarded-host'] || req.headers.host}` : `http://${lanAddress()}:${PORT}`),
     seats: await db.all('SELECT id, label, code FROM seats WHERE space_id = ? ORDER BY id', sp.id),
   };
 });
@@ -412,7 +429,7 @@ route('GET', '/api/staff/desk-codes', async ({ query }) => {
 // ---------- Supabase setup page (only from this computer, only until it is set up) ----------
 const ENV_FILE = join(ROOT, '.env');
 const TEMPLATE_FILE = join(ROOT, 'supabase-password.txt');
-const fromThisComputer = (req) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+const fromThisComputer = (req) => !ON_VERCEL && !req.headers['x-forwarded-for'] && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
 function savedDatabaseUrl() {
   if (!existsSync(ENV_FILE)) return null;
   const line = readFileSync(ENV_FILE, 'utf8').split(/\r?\n/).find((l) => l.trim().startsWith('DATABASE_URL='));
@@ -421,6 +438,7 @@ function savedDatabaseUrl() {
 const PLACEHOLDER = /\[YOUR[-_ A-Z]*PASSWORD\]|PASTE-PASSWORD-HERE/i;
 
 route('GET', '/api/setup/supabase', ({ req }) => {
+  if (ON_VERCEL) throw new HttpError(403, 'On Vercel, the Supabase connection is set in your Vercel project: Settings > Environment Variables > DATABASE_URL.');
   if (!fromThisComputer(req)) throw new HttpError(403, 'This page only works on the computer running the app.');
   const saved = savedDatabaseUrl();
   let template = '';
@@ -529,12 +547,17 @@ async function serveStatic(req, res, url) {
   }
 }
 
-const server = http.createServer(async (req, res) => {
+// Handles one request. Vercel calls this from api/index.js; `npm start` wraps it in a normal server below.
+export async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
   if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url);
+  await ready;
+  if (initError) return sendJson(res, 503, { error: `The server could not open the database: ${initError.message}` });
+  if (ON_VERCEL && Date.now() - lastTick > 15_000) await tick();
 
   try {
     if (url.pathname === '/api/stream' && req.method === 'GET') {
+      if (ON_VERCEL) { res.writeHead(204); return res.end(); } // pages refresh themselves on Vercel instead
       if (!(await currentUser(req))) return sendJson(res, 401, { error: 'Please log in first.' });
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
       res.write('retry: 3000\n\n');
@@ -559,9 +582,10 @@ const server = http.createServer(async (req, res) => {
     if (!(e instanceof HttpError)) console.error(e);
     if (!res.headersSent) sendJson(res, e.status || 500, { error: e instanceof HttpError ? e.message : 'Something went wrong on the server.' });
   }
-});
+}
 
-server.listen(PORT, '0.0.0.0', () => {
+if (!ON_VERCEL) http.createServer(handle).listen(PORT, '0.0.0.0', async () => {
+  await ready;
   console.log(`\nA Seat to Study is running`);
   console.log(`  database:          ${db.where}`);
   console.log(`  on this computer:  http://localhost:${PORT}`);

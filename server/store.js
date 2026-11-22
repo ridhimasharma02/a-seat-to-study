@@ -2,7 +2,6 @@
 //   - Supabase (Postgres), when DATABASE_URL is set (see `npm run connect-supabase`)
 //   - a local SQLite file otherwise, so the app still runs offline
 // Queries are written once with ? placeholders; every call is async.
-import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -10,7 +9,8 @@ export async function openStore({ url, file }) {
   return url ? openPostgres(url) : openSqlite(file);
 }
 
-function openSqlite(file) {
+async function openSqlite(file) {
+  const { DatabaseSync } = await import('node:sqlite'); // only loaded when the local database is used
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;');
@@ -47,12 +47,26 @@ function openSqlite(file) {
   };
 }
 
+// A password pasted as-is (with characters like @ # / ?) breaks a connection string; encode it.
+function fixPassword(raw) {
+  const m = String(raw).trim().replace(/^["']|["']$/g, '').match(/^(postgres(?:ql)?:\/\/)([^:/@]+):(.*)@([^@]+)$/);
+  if (!m) return String(raw).trim();
+  let pw = m[3];
+  try { pw = decodeURIComponent(pw); } catch { /* plain */ }
+  return `${m[1]}${m[2]}:${encodeURIComponent(pw)}@${m[4]}`;
+}
+
 async function openPostgres(rawUrl) {
+  rawUrl = fixPassword(rawUrl);
   const { default: pg } = await import('pg');
   pg.types.setTypeParser(20, (v) => Number(v));    // BIGINT (counts, millisecond times) as plain numbers
   pg.types.setTypeParser(1700, (v) => Number(v));  // NUMERIC
   const url = new URL(rawUrl);
   url.searchParams.delete('sslmode');               // TLS is set below
+  // Supabase's session pooler (port 5432) allows only a few connections at a time, which runs out as soon as
+  // two copies of the app run (or many Vercel instances). Its transaction pooler (port 6543) is made for this,
+  // so use it automatically. Every transaction here runs on one connection, which the transaction pooler supports.
+  if (url.hostname.endsWith('.pooler.supabase.com') && url.port === '5432' && process.env.SUPABASE_SESSION_POOLER !== '1') url.port = '6543';
   const local = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
   const pool = new pg.Pool({
     connectionString: url.toString(),
@@ -61,7 +75,7 @@ async function openPostgres(rawUrl) {
     ssl: local ? false : process.env.SUPABASE_CA
       ? { ca: (await import('node:fs')).readFileSync(process.env.SUPABASE_CA, 'utf8') }
       : { rejectUnauthorized: false },
-    max: 8,
+    max: process.env.VERCEL ? 3 : 6,   // each Vercel instance keeps only a few connections open
     idleTimeoutMillis: 10 * 60_000,   // keep connections warm: opening a new one to Supabase takes a while
     connectionTimeoutMillis: 15_000,
   });
@@ -76,7 +90,7 @@ async function openPostgres(rawUrl) {
   await pool.query('SELECT 1'); // fail fast with a clear error if the connection string is wrong
   return {
     dialect: 'pg',
-    where: `Postgres at ${url.hostname}${url.hostname.includes('supabase') ? ' (Supabase)' : ''}`,
+    where: `Postgres at ${url.hostname}${url.hostname.includes('supabase') ? ` (Supabase, ${url.port === '6543' ? 'transaction' : 'session'} pooler)` : ''}`,
     ...ops(pool),
     async tx(fn) {
       const c = await pool.connect();

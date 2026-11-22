@@ -99,12 +99,27 @@ The app keeps its data in **Supabase** (Postgres) when it's connected, and in a 
 - **Your password stays private.** The connection string includes your database password and lives only in `.env`, which Git ignores. `.env.example` shows the format.
 - **To go back to the local database,** delete `.env`.
 
+## Deploying on Vercel
+
+The repo is ready for Vercel. `vercel.json` sends `/api/...` to the server function in `api/index.js` and serves the website from `public/`. The function runs in Tokyo (`hnd1`), next to the Supabase project. Change `regions` if your Supabase project is somewhere else.
+
+1. In Vercel, import the GitHub repository (Framework: **Other**; root directory: the repository root; no build command).
+2. **Settings → Environment Variables:** add `DATABASE_URL` with your Supabase connection string, with your real database password in place of `[YOUR-PASSWORD]`. The Session pooler string is fine; the app switches to Supabase's transaction pooler (port 6543) by itself.
+3. Redeploy. If `DATABASE_URL` is missing or wrong, the site says so instead of loading forever.
+
+**On Vercel there is no always-running server, so:**
+- **Timed rules:** the 15-minute check-in window and the 20-minute break limit are applied when the next request arrives, not on a timer.
+- **Live updates:** open pages refresh every 10 seconds instead of updating instantly.
+- **The `/setup` page is off.** Use the environment variable instead.
+- **Desk QR stickers** point to your Vercel address automatically.
+
 ## How it's built
 
 | Part | What |
 |---|---|
 | `server/server.js` | Node HTTP server: JSON API, login sessions (HttpOnly cookies, scrypt-hashed passwords), live updates, static files |
 | `server/bookings.js` | Booking rules: availability, reserve, check in, break, check out, automatic release |
+| `api/index.js`, `vercel.json` | Running on Vercel: the server as a function, routes and region |
 | `server/store.js` | One database interface for Supabase (Postgres, via `pg`) and local SQLite (Node's built-in `node:sqlite`) |
 | `server/db.js` | Tables, row-level security, and the first-run demo data |
 | `server/connect.js`, `public/js/pages/setup.js` | Connecting to Supabase from the terminal or from `/setup`: tests the connection and saves it to `.env` |
