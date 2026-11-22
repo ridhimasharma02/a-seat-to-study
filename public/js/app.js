@@ -14,6 +14,7 @@ const PAGES = [
   [/^\/login$/, 'login'],
   [/^\/register$/, 'register'],
   [/^\/checkin$/, 'checkin'],
+  [/^\/setup$/, 'setup'],
 ];
 const OPEN_PAGES = new Set(['login', 'register', 'stafflogin']); // the only pages you can see before logging in
 const STAFF_PAGES = new Set(['staff']);                            // staff portal: staff accounts only
@@ -55,8 +56,7 @@ function header() {
           <details class="who"><summary>${state.me.name}</summary>
             <div class="menu"><p><b>${state.me.name}</b><br><span class="muted">${state.me.title || 'Library staff'}<br>Staff ID ${state.me.staff_id}</span></p>
             <button type="button" class="btn small wide" id="change-pw">Change password</button>
-            <button type="button" class="btn small wide" id="change-pw">Change password</button>
-          <button type="button" class="btn small wide" id="logout">Log out</button></div></details>
+            <button type="button" class="btn small wide" id="logout">Log out</button></div></details>
         </div>
       </div>`);
     document.getElementById('logout').addEventListener('click', logout);
@@ -73,6 +73,7 @@ function header() {
         <a href="/insights" data-link class="ghost-link ${active('/insights') ? 'on' : ''}">Insights</a>
         <details class="who"><summary>${state.me.name.split(' ')[0]}</summary>
           <div class="menu"><p><b>${state.me.name}</b><br><span class="muted">Reg. no. ${state.me.reg_no}</span></p>
+          <button type="button" class="btn small wide" id="change-pw">Change password</button>
           <button type="button" class="btn small wide" id="logout">Log out</button></div></details>
       </div>
     </div>`);
@@ -140,13 +141,15 @@ async function render() {
   const name = hit?.[1];
 
   // Login wall: the login page comes first; nothing else opens until you are logged in.
-  if (!state.me && !OPEN_PAGES.has(name)) {
+  // (The Supabase setup page is the exception: it is needed before anyone can log in, and the server only allows it locally.)
+  if (name === 'setup') { /* always allowed */ }
+  else if (!state.me && !OPEN_PAGES.has(name)) {
     const staffSide = path.startsWith('/staff');
     const next = path === '/' || path === '/staff' || !hit ? '' : `?next=${encodeURIComponent(path + location.search)}`;
     history.replaceState({}, '', `${staffSide ? '/staff/login' : '/login'}${next}`);
     return render();
   }
-  if (state.me) {
+  else if (state.me) {
     const isStaff = state.me.role === 'staff';
     // logged in already: the login pages send you to your own home
     if (OPEN_PAGES.has(name)) { history.replaceState({}, '', homeOf(state.me)); return render(); }

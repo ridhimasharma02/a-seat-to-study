@@ -8,8 +8,13 @@
     "node": ">=22.13"
   },
   "scripts": {
-    "start": "node --no-warnings server/server.js",
-    "reset": "node --no-warnings server/server.js --reset",
-    "set-password": "node --no-warnings server/set-password.js"
+    "start": "node --no-warnings --env-file-if-exists=.env server/server.js",
+    "reset": "node --no-warnings --env-file-if-exists=.env server/server.js --reset",
+    "set-password": "node --no-warnings --env-file-if-exists=.env server/set-password.js",
+    "connect-supabase": "node --no-warnings server/connect.js",
+    "check-supabase": "node --no-warnings server/check-supabase.js"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
   }
 }

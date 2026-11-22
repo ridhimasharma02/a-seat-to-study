@@ -42,7 +42,11 @@ There are two separate logins:
 
 ## Run it
 
-You need [Node.js](https://nodejs.org) 22.13 or newer. There's nothing to install: no dependencies.
+You need [Node.js](https://nodejs.org) 22.13 or newer.
+
+```bash
+npm install
+```
 
 ```bash
 npm start
@@ -75,13 +79,35 @@ npm run set-password -- LIB001
 
 Use any Staff ID or student registration number in place of `LIB001`. It works while the app is running.
 
+## Database: Supabase or local
+
+The app keeps its data in **Supabase** (Postgres) when it's connected, and in a local SQLite file (`data/`) when it isn't. The code is the same for both.
+
+**Connect to Supabase:**
+
+1. Create a project at [supabase.com](https://supabase.com) (the free plan is enough) and note the database password.
+2. In the project, click **Connect** and copy the **Session pooler** connection string.
+3. Start the app (`npm start`), open **http://localhost:3000/setup**, paste your database password, and click **Test and save**. The connection string can stay as Supabase gives it, with the `[YOUR-PASSWORD]` placeholder. That page only works on the computer running the app, and it switches off once Supabase is set up.
+   Or do the same in the terminal: `npm run connect-supabase`. To re-test a saved connection, run `npm run check-supabase`.
+
+4. Restart the app (`npm start`). On the first start on Supabase it creates the tables in Supabase and loads the demo data: seats, demo students, and two weeks of history for Insights.
+
+**What's on Supabase:**
+- **Tables:** `users`, `sessions`, `spaces`, `seats`, `bookings`, `reports` and `settings`, visible in Supabase's Table Editor.
+- **Row-level security** is on for every table. Supabase's public web API can't read or change them; only this server can, through its database connection.
+- **Login:** the app still uses its own login (scrypt-hashed passwords, HttpOnly session cookies), not Supabase Auth.
+- **Your password stays private.** The connection string includes your database password and lives only in `.env`, which Git ignores. `.env.example` shows the format.
+- **To go back to the local database,** delete `.env`.
+
 ## How it's built
 
 | Part | What |
 |---|---|
 | `server/server.js` | Node HTTP server: JSON API, login sessions (HttpOnly cookies, scrypt-hashed passwords), live updates, static files |
 | `server/bookings.js` | Booking rules: availability, reserve, check in, break, check out, automatic release |
-| `server/db.js` | SQLite database (Node's built-in `node:sqlite`): tables and first-run demo data |
+| `server/store.js` | One database interface for Supabase (Postgres, via `pg`) and local SQLite (Node's built-in `node:sqlite`) |
+| `server/db.js` | Tables, row-level security, and the first-run demo data |
+| `server/connect.js`, `public/js/pages/setup.js` | Connecting to Supabase from the terminal or from `/setup`: tests the connection and saves it to `.env` |
 | `public/js/iso.js` | The 3D isometric view: desks, chairs and rooms as 3D boxes, projected and drawn as SVG |
 | `server/sim.js` | Demo activity: simulated students reserve, check in, take breaks and leave |
 | `server/config.js` | The rules (15-min check-in window, 20-min breaks, 1–3 h bookings) and the study spaces |
@@ -89,7 +115,7 @@ Use any Staff ID or student registration number in place of `LIB001`. It works w
 | `public/` | The website: plain HTML, CSS and JavaScript modules, no build step |
 | `prototype-v1/` | The earlier single-page prototype, kept for reference |
 
-The database file is created in `data/` on first run. It is not committed to Git.
+Without Supabase, the database file is created in `data/` on first run. Neither `data/` nor `.env` is committed to Git.
 
 ## Please note
 
