@@ -1,0 +1,15 @@
+{
+  "name": "a-seat-to-study",
+  "version": "2.0.0",
+  "description": "Find, reserve and check in to study seats at LPU. Design Thinking project P06 (INT335).",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --no-warnings server/server.js",
+    "reset": "node --no-warnings server/server.js --reset",
+    "set-password": "node --no-warnings server/set-password.js"
+  }
+}
