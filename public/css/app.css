@@ -324,7 +324,7 @@ dialog.wide { max-width: min(1100px, calc(100% - 32px)); }
 .state.reserved { background: var(--yellow-bg); border-color: var(--yellow-line); }
 .state.mine { background: var(--lav); border-color: var(--lav-ink); }
 .reserved-done { text-align: center; }
-.bigcheck { width: 120px; height: 100px; }
+.bigcheck { width: 120px; height: 100px; display: block; margin: 0 auto; }
 .hand { font: 700 34px/1.2 var(--hand); color: var(--ink); margin: 2px 0 12px; display: inline-block; background: var(--wavy) repeat-x 0 100% / 24px 8px; padding-bottom: 6px; }
 .note { background: var(--soft); border-radius: 10px; padding: 10px 12px; font-size: 14px; text-align: left; }
 .reserved-done .btn { margin-top: 8px; }

@@ -222,7 +222,7 @@ export async function render(ctx) {
         await loadQrLib();
         const st = await api(`/api/staff/desk-codes?space=${ctx.main.querySelector('#st-space').value}`);
         el.innerHTML = String(html`<div class="card print-area">
-          <p class="small muted no-print">Each code opens ${st.base_url}/checkin. Phones must be on the same Wi-Fi as this computer.</p>
+          <p class="small muted no-print">Each code opens ${st.base_url}/checkin.${st.base_url.startsWith('https://') ? '' : ' Phones must be on the same Wi-Fi as this computer.'}</p>
           <div class="stickers">${st.seats.map((s) => {
             const qr = window.qrcode(0, 'M'); qr.addData(`${st.base_url}/checkin?seat=${s.id}&code=${s.code}`); qr.make();
             return html`<div class="sticker">${raw(qr.createSvgTag({ cellSize: 3, margin: 1, scalable: true }))}
