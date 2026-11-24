@@ -26,29 +26,45 @@ const SESSION_DAYS = 7;
 // On Vercel there is no always-on server: no background timer, no open live-update connections, no disk to write.
 const ON_VERCEL = !!process.env.VERCEL;
 
-let db, initError = null;
+let db, initError = null, initFailedAt = 0;
 async function init() {
   process.env.DATABASE_URL="postgresql://postgres.hvaafnuoqbpsyhyqykvv:shxRii123%40RDS@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"; 
   postgresql://postgres.hvaafnuoqbpsyhyqykvv:shxRii123%40RDS@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres
   if (ON_VERCEL && !process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not set. In Vercel open your project > Settings > Environment Variables, add DATABASE_URL with your Supabase connection string, then redeploy.');
   }
-  db = await openDb({
+  if (!db) db = await openDb({
     url: process.env.DATABASE_URL,
     file: process.env.DB_FILE || join(ROOT, 'data', 'seat-to-study.db'),
     reset: process.argv.includes('--reset'),
   });
   await sweep(db, Date.now());
   if ((await getSetting(db, 'demo_activity', '1')) === '1') await simulate(db, Date.now(), { initial: true });
+  lastTick = Date.now(); // that was this round's housekeeping already
 }
-const ready = init().catch((e) => {
-  initError = e;
-  console.error(`\nCould not open the database: ${e.message}`);
-  if (!ON_VERCEL) {
-    if (process.env.DATABASE_URL) console.error('Check the Supabase connection string in .env (run `npm run connect-supabase` again), or delete .env to use the local database.\n');
-    process.exit(1);
+function start() {
+  return init().then(() => { initError = null; }, (e) => {
+    initError = e; initFailedAt = Date.now();
+    console.error(`\nCould not open the database: ${e.message}`);
+    if (!ON_VERCEL) {
+      if (process.env.DATABASE_URL) console.error('Check the Supabase connection string in .env (run `npm run connect-supabase` again), or delete .env to use the local database.\n');
+      process.exit(1);
+    }
+  });
+}
+let ready = start();
+
+// On Vercel one instance answers many requests. If the database was slow while it started, don't stay broken:
+// try again on a later request (at most every 2 seconds), and let requests that arrive meanwhile wait for that try.
+async function ensureReady() {
+  let p;
+  do { p = ready; await p; } while (p !== ready);
+  if (initError && ON_VERCEL && Date.now() - initFailedAt > 2000) {
+    initFailedAt = Date.now();
+    ready = start();
+    await ready;
   }
-});
+}
 
 // ---------- live updates (Server-Sent Events) ----------
 const streams = new Set();
@@ -553,7 +569,7 @@ async function serveStatic(req, res, url) {
 export async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
   if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url);
-  await ready;
+  await ensureReady();
   if (initError) return sendJson(res, 503, { error: `The server could not open the database: ${initError.message}` });
   if (ON_VERCEL && Date.now() - lastTick > 15_000) await tick();
 

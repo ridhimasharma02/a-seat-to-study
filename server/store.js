@@ -77,7 +77,7 @@ async function openPostgres(rawUrl) {
       : { rejectUnauthorized: false },
     max: process.env.VERCEL ? 3 : 6,   // each Vercel instance keeps only a few connections open
     idleTimeoutMillis: 10 * 60_000,   // keep connections warm: opening a new one to Supabase takes a while
-    connectionTimeoutMillis: 15_000,
+    connectionTimeoutMillis: 10_000,  // two tries of 10 s still fit in Vercel's 30-second limit
   });
   pool.on('error', (e) => console.error('[database] connection problem:', e.message));
   const toPg = (sql) => { let i = 0; return sql.replace(/\?/g, () => `$${++i}`); };
@@ -87,7 +87,18 @@ async function openPostgres(rawUrl) {
     run: async (sql, ...p) => { const r = await c.query(toPg(sql), p); return { changes: r.rowCount, rows: r.rows }; },
     exec: async (sql) => { await c.query(sql); },
   });
-  await pool.query('SELECT 1'); // fail fast with a clear error if the connection string is wrong
+  // Check the connection now, so a wrong connection string fails with a clear error. The first connection from a
+  // cold Vercel instance is sometimes slow, so a timeout gets one more try; a wrong password or address does not.
+  for (let attempt = 1; ; attempt++) {
+    try { await pool.query('SELECT 1'); break; }
+    catch (e) {
+      if (attempt >= 2 || !/timeout|timed out|terminated|ECONNRESET/i.test(`${e.code} ${e.message}`)) {
+        await pool.end().catch(() => {});
+        throw e;
+      }
+      console.error(`[database] first connection attempt failed (${e.message}), trying again`);
+    }
+  }
   return {
     dialect: 'pg',
     where: `Postgres at ${url.hostname}${url.hostname.includes('supabase') ? ` (Supabase, ${url.port === '6543' ? 'transaction' : 'session'} pooler)` : ''}`,

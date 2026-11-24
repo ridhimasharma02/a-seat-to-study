@@ -228,20 +228,32 @@ function disconnect() {
   document.body.classList.remove('offline');
 }
 
-(async function start() {
+const AUTO_RETRIES = 5; // a slow database usually answers within a few tries
+(async function start(attempt = 1) {
   let meta, me;
   try {
     [meta, me] = await Promise.all([api('/api/meta'), api('/api/me')]);
   } catch (e) {
-    // Never leave people staring at "Loading…": say what is wrong.
+    // Never leave people staring at "Loading…": say what is wrong, and keep trying if it may fix itself.
     const noServer = e.status === 404;
+    const slow = /timeout|timed out|terminated|ECONNRESET/i.test(e.message || '');
+    const autoRetry = !noServer && attempt <= AUTO_RETRIES;
     main.innerHTML = `<section class="page narrow"><div class="card">
       <h1 class="page-title">Can't reach the app's server</h1>
       <p>${noServer ? "This address only has the website files: the app's server part isn't running here." : esc(e.message)}</p>
       <p class="muted small">${noServer
         ? 'On Vercel, check that the project was deployed from the repository root, with its <code>api/</code> folder and <code>vercel.json</code>.'
+        : slow ? 'The database was slow to answer. This usually fixes itself within a few seconds.'
         : 'If this is on Vercel, check Settings &gt; Environment Variables &gt; DATABASE_URL, then redeploy.'}</p>
+      ${noServer ? '' : `<p class="muted small">${autoRetry ? 'Trying again in a few seconds…' : 'Still not working. Try again in a minute.'}</p>
+        <button type="button" class="btn small" id="try-again">Try again now</button>`}
     </div></section>`;
+    if (noServer) return;
+    const timer = autoRetry ? setTimeout(() => start(attempt + 1), 4000) : null;
+    main.querySelector('#try-again').addEventListener('click', (ev) => {
+      clearTimeout(timer); ev.target.disabled = true; ev.target.textContent = 'Trying…';
+      start(attempt + 1);
+    });
     return;
   }
   setServerTime(meta.now);
