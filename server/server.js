@@ -28,7 +28,8 @@ const ON_VERCEL = !!process.env.VERCEL;
 
 let db, initError = null;
 async function init() {
-  process.env.DATABASE_URL="postgresql://postgres:shxRii123%40RDS@db.hvaafnuoqbpsyhyqykvv.supabase.co:5432/postgres";
+  process.env.DATABASE_URL="postgresql://postgres.hvaafnuoqbpsyhyqykvv:shxRii123%40RDS@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"; 
+  postgresql://postgres.hvaafnuoqbpsyhyqykvv:shxRii123%40RDS@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres
   if (ON_VERCEL && !process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not set. In Vercel open your project > Settings > Environment Variables, add DATABASE_URL with your Supabase connection string, then redeploy.');
   }
