@@ -4,6 +4,8 @@ A working prototype that helps LPU students find a free study seat before they l
 
 INT335 · Design Thinking · Project P06 · Lovely Professional University
 
+**Live site:** https://a-seat-to-study-six.vercel.app
+
 ## What it does
 
 **For students**
@@ -104,7 +106,7 @@ The app keeps its data in **Supabase** (Postgres) when it's connected, and in a 
 The repo is ready for Vercel. `vercel.json` sends `/api/...` to the server function in `api/index.js` and serves the website from `public/`. The function runs in Tokyo (`hnd1`), next to the Supabase project. Change `regions` if your Supabase project is somewhere else.
 
 1. In Vercel, import the GitHub repository (Framework: **Other**; root directory: the repository root; no build command).
-2. **Settings → Environment Variables:** add `DATABASE_URL` with your Supabase connection string, with your real database password in place of `[YOUR-PASSWORD]`. The Session pooler string is fine; the app switches to Supabase's transaction pooler (port 6543) by itself.
+2. **Settings → Environment Variables:** add `DATABASE_URL` with your Supabase connection string, with your real database password in place of `[YOUR-PASSWORD]`. The Session pooler string is fine; the app switches to Supabase's transaction pooler (port 6543) by itself. Don't use the **Direct connection** string (`db.<project>.supabase.co`): it only works over IPv6, which Vercel can't reach, so the site fails with `ENOTFOUND`.
 3. Redeploy. If `DATABASE_URL` is missing or wrong, the site says so instead of loading forever.
 
 **On Vercel there is no always-running server, so:**
