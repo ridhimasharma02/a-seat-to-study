@@ -25,6 +25,72 @@ INT335 · Design Thinking · Project P06 · Lovely Professional University
 
 Every change shows up live for everyone (Server-Sent Events). Simulated "demo students" come and go so the library feels busy during a demo.
 
+## Screenshots
+
+From the running prototype with its demo data, in the order someone would use it. “Demo student” names are simulated users, and Aman Verma is an example account made for these screenshots. Click a picture to see it full size.
+
+### Students
+
+<table>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/01-login.png"><img src="docs/screenshots/01-login.png" alt="Open the app: the login page comes first"></a><br><b>1. Open the app: the login page comes first</b><br>Every visit starts here. Nothing else in the app opens until a student logs in with their LPU registration number.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/02-create-account.png"><img src="docs/screenshots/02-create-account.png" alt="Create an account"></a><br><b>2. Create an account</b><br>A new student signs up with their name, registration number and a password (at least 6 characters).</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/03-home.png"><img src="docs/screenshots/03-home.png" alt="Home: free seats at a glance"></a><br><b>3. Home: free seats at a glance</b><br>After signing up the student lands on Home, which shows how many seats are free in each study space right now.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/04-spaces.png"><img src="docs/screenshots/04-spaces.png" alt="Pick a study space"></a><br><b>4. Pick a study space</b><br>Spaces lists every library floor, the study hall and the group rooms, with live free counts and free seats with a working socket.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/05-floor-plan.png"><img src="docs/screenshots/05-floor-plan.png" alt="See the floor plan"></a><br><b>5. See the floor plan</b><br>Each seat is coloured by its state: free, reserved, occupied or on a break. Filters show only free seats or only seats with a working socket.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/06-seat-details.png"><img src="docs/screenshots/06-seat-details.png" alt="Choose a free seat (K5)"></a><br><b>6. Choose a free seat (K5)</b><br>Clicking a green seat opens its details: location, date and time, socket and zone, plus the Reserve button.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/07-3d-view.png"><img src="docs/screenshots/07-3d-view.png" alt="Or look at the room in 3D"></a><br><b>7. Or look at the room in 3D</b><br>The same room as a 3D view. It can be turned, tilted and zoomed, and seats can be picked here too. The chosen seat has a ring around it.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/08-reserved.png"><img src="docs/screenshots/08-reserved.png" alt="Reserve the seat"></a><br><b>8. Reserve the seat</b><br>One click reserves it. The app says when the check-in window opens and closes (up to 15 minutes after the start), or the seat goes back to everyone.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/09-my-bookings.png"><img src="docs/screenshots/09-my-bookings.png" alt="My Bookings"></a><br><b>9. My Bookings</b><br>The booking shows a countdown to the check-in deadline, with buttons to check in at the desk or cancel.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/10-checkin-code.png"><img src="docs/screenshots/10-checkin-code.png" alt="Check in at the desk"></a><br><b>10. Check in at the desk</b><br>At the seat, the student scans the QR sticker on the desk, or types the 4-character code printed on it.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/11-checked-in.png"><img src="docs/screenshots/11-checked-in.png" alt="Checked in"></a><br><b>11. Checked in</b><br>Scanning the desk QR code opens this page and checks the student in. The seat is now theirs until the booking ends.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/12-studying.png"><img src="docs/screenshots/12-studying.png" alt="Studying: take a break or check out"></a><br><b>12. Studying: take a break or check out</b><br>While checked in, the student can start a 20-minute break or check out early to free the seat for someone else.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/13-on-break.png"><img src="docs/screenshots/13-on-break.png" alt="On a break"></a><br><b>13. On a break</b><br>During a break the seat stays held and shows a countdown. Pressing “I’m back at my seat” resumes it.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/14-report.png"><img src="docs/screenshots/14-report.png" alt="Report a seat"></a><br><b>14. Report a seat</b><br>If a seat is held by a bag, or a socket does not work, the student reports it to the library staff.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/15-report-sent.png"><img src="docs/screenshots/15-report-sent.png" alt="Report sent"></a><br><b>15. Report sent</b><br>The report appears under “Your reports” and shows its status, and later who handled it.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/16-insights.png"><img src="docs/screenshots/16-insights.png" alt="Insights: when is it quiet?"></a><br><b>16. Insights: when is it quiet?</b><br>Insights shows how busy each space usually is hour by hour, so students can plan when to go.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/17-login-wall.png"><img src="docs/screenshots/17-login-wall.png" alt="Logged out: the login wall"></a><br><b>17. Logged out: the login wall</b><br>After logging out, opening any page (here My Bookings) sends you back to the login page.</td>
+<td width="50%"></td>
+</tr>
+</table>
+
+### Library staff
+
+<table>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/18-staff-login-separate.png"><img src="docs/screenshots/18-staff-login-separate.png" alt="A separate login for library staff"></a><br><b>18. A separate login for library staff</b><br>Staff have their own login page. A student registration number is refused here, and staff IDs are refused on the student login.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/19-staff-reports.png"><img src="docs/screenshots/19-staff-reports.png" alt="Staff portal: seat reports"></a><br><b>19. Staff portal: seat reports</b><br>Library staff see every open report, with what is happening at that seat right now.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/20-staff-show-on-map.png"><img src="docs/screenshots/20-staff-show-on-map.png" alt="Show the reported seat on the map"></a><br><b>20. Show the reported seat on the map</b><br>“Show on map” opens the floor plan with the reported seat outlined, so staff can walk straight to it.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/21-staff-resolved.png"><img src="docs/screenshots/21-staff-resolved.png" alt="Handle the report"></a><br><b>21. Handle the report</b><br>Staff free the seat (or mark the socket broken, or note that nothing was wrong). The outcome, note and staff name are recorded.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/22-staff-seats.png"><img src="docs/screenshots/22-staff-seats.png" alt="Seats in use"></a><br><b>22. Seats in use</b><br>Every booked, occupied and on-break seat, filterable by space and status. Staff can free a seat from here.</td>
+<td width="50%" valign="top"><a href="docs/screenshots/23-staff-sockets.png"><img src="docs/screenshots/23-staff-sockets.png" alt="Power sockets"></a><br><b>23. Power sockets</b><br>Broken sockets are listed for the maintenance team, who mark them fixed. Seats with a broken socket are left out when students filter for a working socket.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="docs/screenshots/24-staff-stickers.png"><img src="docs/screenshots/24-staff-stickers.png" alt="Desk QR stickers"></a><br><b>24. Desk QR stickers</b><br>Staff print a QR sticker for every desk. Scanning one checks the student in to that seat.</td>
+<td width="50%"></td>
+</tr>
+</table>
+
 ## Logging in
 
 There are two separate logins:
@@ -129,6 +195,7 @@ The repo is ready for Vercel. `vercel.json` sends `/api/...` to the server funct
 | `public/js/pages/staff.js`, `stafflogin.js` | The staff portal and its login page |
 | `public/` | The website: plain HTML, CSS and JavaScript modules, no build step |
 | `prototype-v1/` | The earlier single-page prototype, kept for reference |
+| `docs/screenshots/` | The screenshots shown in this README |
 
 Without Supabase, the database file is created in `data/` on first run. Neither `data/` nor `.env` is committed to Git.
 
